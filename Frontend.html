@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Progression & Portfolio System</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Progression Graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        primary: '#2563eb', // Blue-600
+                        primaryHover: '#1d4ed8', // Blue-700
+                        success: '#10b981', // Emerald-500
+                        surface: '#ffffff',
+                        background: '#f8fafc', // Slate-50
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Smooth transitions for view switching */
+        .page-view { display: none; opacity: 0; transition: opacity 0.3s ease; }
+        .page-view.active { display: block; opacity: 1; }
+        
+        /* Table styles from mockup */
+        .mockup-table th { background-color: #f8fafc; font-weight: 600; color: #475569; text-transform: uppercase; font-size: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; }
+        .mockup-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; color: #334155; }
+    </style>
+</head>
+<body class="bg-background text-slate-800 font-sans h-screen flex overflow-hidden">
+
+    <!-- Sidebar Overlay -->
+    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300"></div>
+
+    <!-- Sliding Sidebar -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full transition-transform duration-300 ease-in-out z-50 w-72 bg-white border-r border-slate-200 flex flex-col shadow-2xl">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-200">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary text-white p-2 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <h1 class="text-lg font-bold text-slate-900 tracking-tight">EduDash System</h1>
+            </div>
+            <button onclick="toggleSidebar()" class="text-slate-400 hover:text-slate-700 transition-colors">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+            <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Main Navigation</p>
+            
+            <button onclick="navigateTo('dashboardPage')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium bg-primary/10 text-primary transition-colors">
+                <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                Detailed Dashboard
+            </button>
+            
+            <button onclick="navigateTo('managePage')" id="nav-manage" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-users-gear w-5 text-center"></i>
+                Manage Students DB
+            </button>
+            
+            <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 mt-8">Quick Actions</p>
+            
+            <button onclick="navigateTo('managePage'); setTimeout(openAddStudentPanel, 100);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-user-plus w-5 text-center"></i>
+                Add New Student
+            </button>
+            
+            <button onclick="exportToExcel()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-file-export w-5 text-center"></i>
+                Export to Sheet
+            </button>
+        </nav>
+        
+        <div class="p-4 border-t border-slate-200 bg-slate-50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600 border-2 border-white shadow-sm">A</div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Admin User</p>
+                    <p class="text-xs text-slate-500">System Administrator</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative w-full">
+        
+        <!-- Top Header with Menu Button -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 flex-shrink-0 z-10 shadow-sm">
+            <div class="flex items-center gap-4 w-full max-w-3xl">
+                <!-- Hamburger Menu Button -->
+                <button onclick="toggleSidebar()" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                
+                <!-- Search Bar -->
+                <div class="relative w-full max-w-md hidden sm:block">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-search text-slate-400"></i>
+                    </div>
+                    <input type="text" placeholder="Search student by name or PRN..." 
+                        class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-sm bg-slate-50 focus:bg-white">
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 pl-4">
+                <button class="text-slate-400 hover:text-slate-600 relative p-2">
+                    <i class="fa-regular fa-bell text-xl"></i>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Scrollable Pages Container -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 relative">
+            
+            <!-- ================= PAGE 1: DETAILED DASHBOARD ================= -->
+            <div id="dashboardPage" class="page-view active max-w-7xl mx-auto space-y-6">
+                
+                <div class="flex justify-between items-center pb-2">
+                    <h2 class="text-2xl font-bold text-slate-900">Student Dashboard</h2>
+                    <p class="text-sm font-medium text-slate-500 hidden sm:block">Overview & Analytics</p>
+                </div>
+
+                <!-- Row 1: Profile & Stats -->
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    
+                    <!-- Profile Card -->
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-1 flex flex-col">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex gap-4">
+                                <div class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold shadow-md">
+                                    PN
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-slate-900">Parth Nar</h2>
+                                    <p class="text-sm text-slate-500 mt-1">Phone No: <span class="font-medium text-slate-700">123-456-7890</span></p>
+                                    <p class="text-sm text-slate-500">Department: <span class="font-medium text-slate-700">Electrical andComputer Engineering</span></p>
+                                    <p class="text-sm text-slate-500">Admission Year: <span class="font-medium text-slate-700">2021</span></p>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mt-auto pt-4 border-t border-slate-100">
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center gap-3">
+                                <i class="fa-solid fa-school text-slate-400 text-lg"></i>
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">10th (SSC)</p>
+                                    <p class="font-bold text-slate-900">82.60% <span class="text-xs text-slate-400 font-normal">(2020)</span></p>
+                                </div>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center gap-3">
+                                <i class="fa-solid fa-building-columns text-slate-400 text-lg"></i>
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">12th (HSC)</p>
+                                    <p class="font-bold text-slate-900">76.40% <span class="text-xs text-slate-400 font-normal">(2022)</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Key Stats Cards -->
+                    <div class="col-span-1 xl:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 flex flex-col justify-center items-center text-center">
+                            <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-2">
+                                <i class="fa-solid fa-calendar-days"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Semesters</p>
+                            <p class="text-3xl font-bold text-slate-900 mt-1">6</p>
+                        </div>
+                        <div class="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 flex flex-col justify-center items-center text-center">
+                            <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-2">
+                                <i class="fa-solid fa-chart-column"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Current SGPA</p>
+                            <p class="text-3xl font-bold text-emerald-600 mt-1">8.54</p>
+                        </div>
+                        <div class="bg-purple-50/50 p-5 rounded-xl border border-purple-100 flex flex-col justify-center items-center text-center">
+                            <div class="w-10 h-10 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mb-2">
+                                <i class="fa-solid fa-trophy"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">CGPA</p>
+                            <p class="text-3xl font-bold text-purple-600 mt-1">8.21</p>
+                        </div>
+                        <div class="bg-teal-50/50 p-5 rounded-xl border border-teal-100 flex flex-col justify-center items-center text-center">
+                            <div class="w-10 h-10 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-2">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</p>
+                            <p class="text-2xl font-bold text-teal-600 mt-2">On Track</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 2: Graph & Quick Actions -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Graph -->
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-slate-800">Semester Progression (SGPA)</h3>
+                            <span class="flex items-center gap-2 text-xs font-medium text-slate-500"><span class="w-3 h-3 rounded-full bg-primary"></span> SGPA Trend</span>
+                        </div>
+                        <div class="relative h-64 w-full">
+                            <canvas id="sgpaChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Sync & Quick Actions -->
+                    <div class="space-y-6">
+                        <!-- Google Sheets Sync -->
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-brands fa-google-drive text-emerald-500 text-xl"></i>
+                                    <h3 class="font-bold text-slate-800">Sheets Sync</h3>
+                                </div>
+                                <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded">Active</span>
+                            </div>
+                            <div class="space-y-2 text-sm mb-4">
+                                <p class="text-slate-500">Last Sync: <span class="text-slate-800 font-medium">17 Oct 2026, 10:24 AM</span></p>
+                                <p class="text-slate-500">Status: <span class="text-slate-800 font-medium">Success</span></p>
+                                <p class="text-slate-500">Records Synced: <span class="text-slate-800 font-medium">523</span></p>
+                            </div>
+                            <button class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-arrows-rotate"></i> Sync Now
+                            </button>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <h3 class="font-bold text-slate-800 mb-3">Quick Actions</h3>
+                            <div class="space-y-2">
+                                <button onclick="navigateTo('managePage'); setTimeout(openAddStudentPanel, 100);" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-primary hover:bg-primary/5 transition-all text-left text-sm font-medium text-slate-700">
+                                    <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center"><i class="fa-solid fa-plus"></i></div>
+                                    Add New Student
+                                </button>
+                                <button onclick="navigateTo('managePage')" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-primary hover:bg-primary/5 transition-all text-left text-sm font-medium text-slate-700">
+                                    <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center"><i class="fa-solid fa-pen-to-square"></i></div>
+                                    Update DB Records
+                                </button>
+                                <button onclick="exportToExcel()" class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-primary hover:bg-primary/5 transition-all text-left text-sm font-medium text-slate-700">
+                                    <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center"><i class="fa-solid fa-download"></i></div>
+                                    Export to Sheet (Excel)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 3: Tables & Portfolio -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-10">
+                    
+                    <!-- Semester Marks Table -->
+                    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-200 flex flex-wrap gap-3 justify-between items-center bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800">Semester-wise Marks</h3>
+                            <div class="flex flex-wrap gap-1 bg-slate-200/50 p-1 rounded-lg">
+                                <button class="px-3 py-1 text-xs font-bold rounded-md bg-white shadow-sm text-primary">S1</button>
+                                <button class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:bg-slate-200">S2</button>
+                                <button class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:bg-slate-200">S3</button>
+                                <button class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:bg-slate-200">S4</button>
+                                <button class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:bg-slate-200">S5</button>
+                                <button class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:bg-slate-200">S6</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left mockup-table whitespace-nowrap">
+                                <thead>
+                                    <tr>
+                                        <th>Subject Code</th>
+                                        <th>Subject Name</th>
+                                        <th>Theory (Max/Obt)</th>
+                                        <th>Lab (Max/Obt)</th>
+                                        <th>Total</th>
+                                        <th>Grade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="font-medium text-slate-700">ECC101</td>
+                                        <td>Data Structures</td>
+                                        <td>80 / 72</td>
+                                        <td class="text-slate-400">-</td>
+                                        <td class="font-semibold">72</td>
+                                        <td><span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold text-xs">A</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-medium text-slate-700">ECC102</td>
+                                        <td>Digital Electronics</td>
+                                        <td>80 / 68</td>
+                                        <td class="text-slate-400">-</td>
+                                        <td class="font-semibold">68</td>
+                                        <td><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold text-xs">B+</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-medium text-slate-700">ECC103</td>
+                                        <td>Computer Networks</td>
+                                        <td>80 / 70</td>
+                                        <td class="text-slate-400">-</td>
+                                        <td class="font-semibold">70</td>
+                                        <td><span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold text-xs">A</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-medium text-slate-700">ECC104</td>
+                                        <td>System Programming</td>
+                                        <td>80 / 62</td>
+                                        <td class="text-slate-400">-</td>
+                                        <td class="font-semibold">62</td>
+                                        <td><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold text-xs">B+</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-medium text-slate-700">ECL101</td>
+                                        <td>Data Structures Lab</td>
+                                        <td class="text-slate-400">-</td>
+                                        <td>50 / 45</td>
+                                        <td class="font-semibold">45</td>
+                                        <td><span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold text-xs">A</span></td>
+                                    </tr>
+                                    <tr class="bg-slate-50/80">
+                                        <td colspan="4" class="text-right font-bold text-slate-600 uppercase text-xs">SGPA Total:</td>
+                                        <td colspan="2" class="font-bold text-primary text-lg">7.45</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Gap Year Marker -->
+                        <div class="m-5 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-4 shadow-sm">
+                            <div class="bg-amber-100 p-2 rounded-full mt-0.5">
+                                <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-amber-900">Academic Gap Identified</p>
+                                <p class="text-xs text-amber-700 mt-1 font-medium">One year gap recorded between S4 and S5 (Academic Year 2024-2025)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio -->
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                        <div class="p-5 border-b border-slate-200 bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800">Portfolio & Activities</h3>
+                        </div>
+                        <div class="p-5 flex-1">
+                            <h4 class="text-xs font-bold uppercase text-slate-400 mb-4 tracking-wider">Seminars Attended</h4>
+                            <ul class="space-y-4 mb-8 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-slate-100">
+                                <li class="relative pl-8">
+                                    <span class="absolute left-0 top-1 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-[10px] ring-4 ring-white z-10"><i class="fa-solid fa-chalkboard-user"></i></span>
+                                    <p class="text-sm font-medium text-slate-800">Intro to AI & ML</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">15-09-2023 &bull; External</p>
+                                </li>
+                                <li class="relative pl-8">
+                                    <span class="absolute left-0 top-1 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-[10px] ring-4 ring-white z-10"><i class="fa-solid fa-code"></i></span>
+                                    <p class="text-sm font-medium text-slate-800">Web Dev Workshop</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">10-02-2024 &bull; Internal</p>
+                                </li>
+                            </ul>
+
+                            <h4 class="text-xs font-bold uppercase text-slate-400 mb-4 tracking-wider">Recent Activities</h4>
+                            <ul class="space-y-4 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-slate-100">
+                                <li class="relative pl-8">
+                                    <span class="absolute left-0 top-1 w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[10px] ring-4 ring-white z-10"><i class="fa-solid fa-medal"></i></span>
+                                    <p class="text-sm font-medium text-slate-800">Technical Quiz</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">Co-curricular &bull; 12-03-2024</p>
+                                </li>
+                                <li class="relative pl-8">
+                                    <span class="absolute left-0 top-1 w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] ring-4 ring-white z-10"><i class="fa-solid fa-hands-holding-circle"></i></span>
+                                    <p class="text-sm font-medium text-slate-800">Volunteered in Fest</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">Extra-curricular &bull; 20-01-2024</p>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <!-- ================= PAGE 2: MANAGE STUDENTS DB ================= -->
+            <div id="managePage" class="page-view max-w-7xl mx-auto space-y-6 h-full pb-10">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-slate-200 pb-4 gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Database Management</h2>
+                        <p class="text-sm text-slate-500 mt-1">Add, update, or remove live student records.</p>
+                    </div>
+                    <button onclick="openAddStudentPanel()" class="bg-primary hover:bg-primaryHover text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Add New Record
+                    </button>
+                </div>
+
+                <!-- Slide-out Panel for Form (hidden by default) -->
+                <div id="addUpdateFormContainer" class="bg-white rounded-xl shadow-md border border-slate-200 p-6 hidden">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2" id="formTitle">
+                            <div class="bg-primary/10 p-2 rounded-lg"><i class="fa-solid fa-user-plus text-primary"></i></div>
+                            <span>Add Student Record</span>
+                        </h3>
+                        <button type="button" onclick="closeAddStudentPanel()" class="text-slate-400 hover:text-slate-600 transition-colors p-2 bg-slate-50 hover:bg-slate-100 rounded-full">
+                            <i class="fa-solid fa-xmark text-lg w-5 h-5 flex items-center justify-center"></i>
+                        </button>
+                    </div>
+                    
+                    <form id="studentForm" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <input type="hidden" id="editIndex" value="-1">
+                        
+                        <div>
+                            <label for="studentId" class="block text-sm font-medium text-slate-700 mb-1.5">Roll No / ID</label>
+                            <input type="text" id="studentId" required placeholder="e.g. 1001"
+                                class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all bg-slate-50 focus:bg-white">
+                        </div>
+                        
+                        <div>
+                            <label for="studentName" class="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
+                            <input type="text" id="studentName" required placeholder="Full student name"
+                                class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all bg-slate-50 focus:bg-white">
+                        </div>
+
+                        <div>
+                            <label for="studentEmail" class="block text-sm font-medium text-slate-700 mb-1.5">Email Address</label>
+                            <input type="email" id="studentEmail" required placeholder="student@example.com"
+                                class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all bg-slate-50 focus:bg-white">
+                        </div>
+                        
+                        <div>
+                            <label for="course" class="block text-sm font-medium text-slate-700 mb-1.5">Department / Course</label>
+                            <select id="course" required
+                                class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all bg-slate-50 focus:bg-white">
+                                <option value="" disabled selected>Select Department</option>
+                                <option value="Electrical and Computer Engineering">Electrical and Computer Engineering</option>
+                                <option value="Computer Engineering">Computer Engineering</option>
+                                <option value="Information Technology">Information Technology</option>
+                                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                                <option value="Civil Engineering">Civil Engineering</option>
+                            </select>
+                        </div>
+
+                        <div class="md:col-span-2 pt-2 flex justify-end gap-3 border-t border-slate-100 pt-5 mt-2">
+                            <button type="button" onclick="closeAddStudentPanel()" class="px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm">
+                                Cancel
+                            </button>
+                            <button type="submit" id="submitBtn" class="bg-primary hover:bg-primaryHover text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-2 text-sm min-w-[150px]">
+                                <i class="fa-solid fa-check"></i> Save Record
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Live Data Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-database text-slate-400"></i> Live Database Records
+                        </h3>
+                        <div class="relative w-full sm:w-64">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-search text-slate-400"></i>
+                            </div>
+                            <input type="text" id="searchInputDB" placeholder="Filter table..."
+                                class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm bg-white shadow-sm">
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto overflow-y-auto max-h-[600px] flex-1">
+                        <table class="w-full text-left border-collapse whitespace-nowrap">
+                            <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                                <tr class="border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-semibold">
+                                    <th class="p-4">Roll No</th>
+                                    <th class="p-4">Full Name</th>
+                                    <th class="p-4">Department</th>
+                                    <th class="p-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentTableBody" class="divide-y divide-slate-100">
+                                <!-- Rows injected by JS -->
+                            </tbody>
+                        </table>
+                        
+                        <div id="emptyState" class="hidden flex-col items-center justify-center p-12 text-center bg-white">
+                            <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-300 border border-slate-100">
+                                <i class="fa-solid fa-database text-2xl"></i>
+                            </div>
+                            <h3 class="text-slate-700 font-semibold text-lg">No records found</h3>
+                            <p class="text-sm text-slate-500 mt-1 max-w-sm">There are no students matching your criteria, or the database is empty. Start by adding a new record.</p>
+                        </div>
+                        
+                        <!-- Connection Error State -->
+                        <div id="errorState" class="hidden flex-col items-center justify-center p-12 text-center bg-white">
+                            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 text-red-400 border border-red-100">
+                                <i class="fa-solid fa-plug-circle-xmark text-2xl"></i>
+                            </div>
+                            <h3 class="text-slate-800 font-semibold text-lg">Database Disconnected</h3>
+                            <p class="text-sm text-slate-500 mt-1 max-w-sm">Make sure your Node.js backend server is running on <code class="bg-slate-100 px-1 rounded text-slate-700">localhost:3000</code>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Custom Delete Confirmation Modal -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[60] opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="deleteModalContent">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-red-100">
+                    <i class="fa-solid fa-trash-can text-2xl text-red-500"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-900 mb-2">Delete Record?</h3>
+                <p class="text-sm text-slate-500 mb-6">Are you sure you want to permanently delete the record for <br><span id="deleteStudentName" class="font-bold text-slate-800 text-base block mt-1"></span></p>
+                <div class="flex gap-3 justify-center">
+                    <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium">Cancel</button>
+                    <button onclick="confirmDelete()" class="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors font-medium shadow-sm shadow-red-500/20">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-white border-l-4 shadow-xl rounded-lg p-4 transform translate-y-24 opacity-0 transition-all duration-300 z-[70] flex items-center gap-3 min-w-[250px]">
+        <i class="fa-solid fa-circle-check text-xl"></i>
+        <p id="toastMessage" class="text-sm font-semibold text-slate-700"></p>
+    </div>
+
+    <script>
+        // ================= SIDEBAR & ROUTING LOGIC =================
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        let isSidebarOpen = false;
+
+        function toggleSidebar() {
+            isSidebarOpen = !isSidebarOpen;
+            if (isSidebarOpen) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                // tiny delay to allow display:block to apply before opacity transition
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        function navigateTo(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page-view').forEach(el => {
+                el.classList.remove('active');
+                setTimeout(() => { if(!el.classList.contains('active')) el.style.display = 'none'; }, 300); 
+            });
+            
+            // Show target page
+            const target = document.getElementById(pageId);
+            target.style.display = 'block';
+            setTimeout(() => target.classList.add('active'), 10);
+
+            // Update Nav Highlighting
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = "nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors";
+            });
+            
+            if(pageId === 'dashboardPage') {
+                document.getElementById('nav-dashboard').className = "nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium bg-primary/10 text-primary transition-colors";
+                initChart(); // Re-render chart to prevent canvas sizing bugs
+            } else if (pageId === 'managePage') {
+                document.getElementById('nav-manage').className = "nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium bg-primary/10 text-primary transition-colors";
+                fetchStudents(); // Refresh data from backend when navigating to manage page
+            }
+            
+            // ALWAYS close sidebar after clicking a navigation link
+            if (isSidebarOpen) {
+                toggleSidebar();
+            }
+        }
+
+        // ================= CHART.JS INITIALIZATION =================
+        let sgpaChart = null;
+        function initChart() {
+            const ctx = document.getElementById('sgpaChart').getContext('2d');
+            if (sgpaChart) sgpaChart.destroy(); // Destroy previous instance
+
+            sgpaChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['S1', 'S2', 'S3', 'S4', 'Gap Year', 'S5', 'S6'],
+                    datasets: [{
+                        label: 'SGPA',
+                        data: [7.45, 7.80, 8.12, 8.35, null, 8.00, 8.54],
+                        borderColor: '#2563eb', // Blue-600
+                        backgroundColor: '#2563eb',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#2563eb',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        spanGaps: true // Connects the line through the null value
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 4, max: 10, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: 'bold' } } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            padding: 12,
+                            titleFont: { family: 'Inter', size: 13 },
+                            bodyFont: { family: 'Inter', size: 14, weight: 'bold' },
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) { return context.parsed.y + ' SGPA'; }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Init chart immediately as Dashboard is the default page
+        initChart();
+
+        // ================= STUDENT CRUD (DATABASE) LOGIC =================
+        let students = [];
+        let deleteTargetId = -1;
+        const API_URL = 'http://localhost:3000/api/students';
+
+        // Form DOM Elements
+        const formContainer = document.getElementById('addUpdateFormContainer');
+        const form = document.getElementById('studentForm');
+        const idInput = document.getElementById('studentId');
+        const nameInput = document.getElementById('studentName');
+        const emailInput = document.getElementById('studentEmail');
+        const courseInput = document.getElementById('course');
+        const editIndexInput = document.getElementById('editIndex');
+        const formTitle = document.getElementById('formTitle');
+        const submitBtn = document.getElementById('submitBtn');
+        const tableBody = document.getElementById('studentTableBody');
+        const searchInputDB = document.getElementById('searchInputDB');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+
+        // Form Panel Toggles
+        function openAddStudentPanel() {
+            formContainer.classList.remove('hidden');
+            resetForm();
+            formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function closeAddStudentPanel() {
+            formContainer.classList.add('hidden');
+        }
+
+        // Read (Fetch from backend)
+        async function fetchStudents() {
+            try {
+                // Hide states while loading
+                errorState.classList.add('hidden');
+                errorState.classList.remove('flex');
+                
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const dbData = await response.json();
+                
+                // Map Postgres data to frontend format, capturing ALL DB columns for the CSV Export
+                students = dbData.map(row => ({
+                    id: row.roll_no ? row.roll_no.toString() : (row.student_id ? row.student_id.toString() : 'N/A'), 
+                    name: row.full_name || 'Unknown',
+                    course: row.department || 'N/A',
+                    email: row.email || 'N/A',
+                    class_branch: row.class_branch || 'N/A',
+                    college: row.college || 'N/A',
+                    admission_year: row.admission_year || 'N/A',
+                    current_status: row.current_status || 'N/A'
+                }));
+                renderTable();
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                // Show Error State
+                tableBody.innerHTML = '';
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                errorState.classList.remove('hidden');
+                errorState.classList.add('flex');
+                showToast("Cannot connect to Database Server.", 'border-red-500', 'text-red-500', 'fa-plug-circle-xmark');
+            }
+        }
+
+        // Render DB Table
+        function renderTable() {
+            const searchTerm = searchInputDB.value.toLowerCase();
+            tableBody.innerHTML = '';
+            
+            const filteredStudents = students.filter(s => 
+                s.name.toLowerCase().includes(searchTerm) || 
+                String(s.id).toLowerCase().includes(searchTerm) ||
+                s.course.toLowerCase().includes(searchTerm)
+            );
+
+            if (filteredStudents.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+
+                filteredStudents.forEach((student, index) => {
+                    // Actual index needed if filtering is applied
+                    const actualIndex = students.indexOf(student);
+                    
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 transition-colors group';
+                    tr.innerHTML = `
+                        <td class="p-4 text-sm font-bold text-slate-700 whitespace-nowrap">#${student.id}</td>
+                        <td class="p-4 text-sm text-slate-800">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase shadow-sm border border-primary/20">
+                                    ${student.name.charAt(0)}
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="font-semibold whitespace-nowrap">${student.name}</span>
+                                    <span class="text-xs text-slate-500">${student.email !== 'N/A' ? student.email : 'No email'}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-4 text-sm text-slate-600 whitespace-nowrap">${student.course}</td>
+                        <td class="p-4 text-right">
+                            <div class="flex justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="editStudent(${actualIndex})" class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:shadow flex items-center justify-center transition-all" title="Edit">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button onclick="openDeleteModal('${student.id}', '${student.name.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 hover:shadow flex items-center justify-center transition-all" title="Delete">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+        }
+        
+        searchInputDB.addEventListener('input', renderTable);
+
+        // Create & Update (Submit form)
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const studentData = {
+                id: idInput.value,
+                name: nameInput.value.trim(),
+                email: emailInput.value.trim(),
+                course: courseInput.value
+            };
+            const editIndex = parseInt(editIndexInput.value);
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...`;
+
+                if (editIndex === -1) {
+                    // CREATE via POST
+                    const response = await fetch(API_URL, {
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(studentData)
+                    });
+                    if (response.ok) {
+                        showToast('Student record created!');
+                        closeAddStudentPanel();
+                    } else throw new Error("Server rejected POST");
+                } else {
+                    // UPDATE via PUT
+                    const originalId = students[editIndex].id; 
+                    const response = await fetch(`${API_URL}/${originalId}`, {
+                        method: 'PUT', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(studentData)
+                    });
+                    if (response.ok) {
+                        showToast('Student record updated!');
+                        closeAddStudentPanel();
+                    } else throw new Error("Server rejected PUT");
+                }
+                await fetchStudents(); // Sync frontend table
+            } catch (error) {
+                showToast("Operation failed. Check server.", "border-red-500", "text-red-500", "fa-triangle-exclamation");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> Save Record`;
+            }
+        });
+
+        function editStudent(index) {
+            const student = students[index];
+            formContainer.classList.remove('hidden');
+            
+            idInput.value = student.id;
+            nameInput.value = student.name;
+            emailInput.value = student.email !== 'N/A' ? student.email : '';
+            courseInput.value = student.course;
+            editIndexInput.value = index;
+
+            formTitle.innerHTML = `<div class="bg-amber-100 p-2 rounded-lg"><i class="fa-solid fa-pen text-amber-600"></i></div> <span>Edit Record</span>`;
+            submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Update Record`;
+            submitBtn.className = "bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-2 text-sm min-w-[150px]";
+            
+            formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function resetForm() {
+            form.reset();
+            editIndexInput.value = -1;
+            formTitle.innerHTML = `<div class="bg-primary/10 p-2 rounded-lg"><i class="fa-solid fa-user-plus text-primary"></i></div> <span>Add Student Record</span>`;
+            submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> Save Record`;
+            submitBtn.className = "bg-primary hover:bg-primaryHover text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-2 text-sm min-w-[150px]";
+        }
+
+        // Delete Modal Logic
+        const deleteModal = document.getElementById('deleteModal');
+        const deleteModalContent = document.getElementById('deleteModalContent');
+        
+        function openDeleteModal(id, name) {
+            deleteTargetId = id;
+            document.getElementById('deleteStudentName').textContent = name;
+            
+            deleteModal.classList.remove('hidden');
+            void deleteModal.offsetWidth; // Force Reflow
+            deleteModal.classList.remove('opacity-0');
+            deleteModalContent.classList.remove('scale-95');
+        }
+
+        function closeDeleteModal() {
+            deleteModal.classList.add('opacity-0');
+            deleteModalContent.classList.add('scale-95');
+            setTimeout(() => deleteModal.classList.add('hidden'), 300);
+        }
+
+        async function confirmDelete() {
+            if (deleteTargetId !== -1) {
+                try {
+                    const response = await fetch(`${API_URL}/${deleteTargetId}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        closeDeleteModal();
+                        showToast('Record deleted permanently', 'border-red-500', 'text-red-500', 'fa-trash-can');
+                        
+                        // Close form if editing the deleted record
+                        const editIdx = parseInt(editIndexInput.value);
+                        if(editIdx > -1 && students[editIdx].id == deleteTargetId) {
+                            closeAddStudentPanel();
+                        }
+                        
+                        await fetchStudents(); 
+                    } else throw new Error("Server rejected DELETE");
+                } catch (error) {
+                    showToast("Failed to delete record.", "border-red-500", "text-red-500", "fa-triangle-exclamation");
+                }
+            }
+        }
+
+        // Export data to multi-sheet Excel file
+        async function exportToExcel() {
+            // ALWAYS close sidebar instantly
+            if (isSidebarOpen) toggleSidebar();
+
+            showToast("Fetching full database...", "border-primary", "text-primary", "fa-circle-notch fa-spin");
+
+            try {
+                // Fetch the object containing arrays for all tables
+                const response = await fetch('http://localhost:3000/api/export-all');
+                if (!response.ok) throw new Error("Failed to fetch export data");
+                const dbData = await response.json();
+
+                // Create a new empty workbook
+                const wb = XLSX.utils.book_new();
+
+                // Loop through every table object sent by the backend
+                for (const [tableName, tableRows] of Object.entries(dbData)) {
+                    // Convert JSON array into an Excel worksheet
+                    const ws = XLSX.utils.json_to_sheet(tableRows);
+                    // Add it as a new tab to the workbook
+                    XLSX.utils.book_append_sheet(wb, ws, tableName);
+                }
+
+                // Trigger download directly in the browser
+                XLSX.writeFile(wb, 'EduDash_Complete_Database.xlsx');
+                
+                showToast('Database exported to Excel successfully!');
+            } catch (error) {
+                console.error("Export error:", error);
+                showToast("Failed to export data. Is the server running?", "border-red-500", "text-red-500", "fa-triangle-exclamation");
+            }
+        }
+
+        // Global Toast Notification Helper
+        function showToast(msg, border='border-emerald-500', text='text-emerald-500', icon='fa-circle-check') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = msg;
+            toast.className = `fixed bottom-6 right-6 bg-white border-l-4 shadow-xl rounded-lg p-4 transform translate-y-24 opacity-0 transition-all duration-300 z-[70] flex items-center gap-3 min-w-[250px] ${border}`;
+            toast.querySelector('i').className = `fa-solid ${icon} text-xl ${text}`;
+            
+            setTimeout(() => toast.classList.remove('translate-y-24', 'opacity-0'), 10);
+            setTimeout(() => toast.classList.add('translate-y-24', 'opacity-0'), 3000);
+        }
+
+        // Fetch initial data if viewing Manage Students page
+        fetchStudents();
+
+    </script>
+</body>
+</html>
